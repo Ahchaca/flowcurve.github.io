@@ -311,17 +311,28 @@
 
             window.Clerk.session.getToken()
                 .then(function (clerkToken) {
-                    return fetch(API_BASE + '/pair/complete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sessionId: sessionId, clerkToken: clerkToken })
-                    });
-                })
-                .then(function (response) {
-                    return response.json().then(function (data) {
-                        if (!response.ok) throw new Error(data.error || 'server responded ' + response.status);
-                        return data;
-                    });
+                    var attempts = 0;
+
+                    function submitToken() {
+                        attempts += 1;
+                        return fetch(API_BASE + '/pair/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sessionId: sessionId, clerkToken: clerkToken })
+                        }).then(function (response) {
+                            return response.json().catch(function () { return {}; }).then(function (data) {
+                                if (response.status === 404 && attempts < 30) {
+                                    return new Promise(function (resolve) {
+                                        window.setTimeout(resolve, 1000);
+                                    }).then(submitToken);
+                                }
+                                if (!response.ok) throw new Error(data.error || 'server responded ' + response.status);
+                                return data;
+                            });
+                        });
+                    }
+
+                    return submitToken();
                 })
                 .then(function () {
                     setStatus('Signed in. Return to After Effects; FlowCurve is unlocking.');
