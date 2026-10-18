@@ -163,6 +163,42 @@
             text-shadow: 0 1px 4px #000;
         }
 
+        #auth-success {
+            width: min(420px, calc(100vw - 32px));
+            padding: 28px;
+            border: 1px solid #4a86e8;
+            border-radius: 8px;
+            background: #1b1b1b;
+            color: #fff;
+            text-align: center;
+        }
+
+        #auth-success::backdrop {
+            background: rgba(0, 0, 0, .72);
+        }
+
+        #auth-success h2 {
+            margin-bottom: 10px;
+            font-size: 21px;
+        }
+
+        #auth-success p {
+            margin-bottom: 22px;
+            color: #d0d0d0;
+            line-height: 1.5;
+        }
+
+        #auth-success button {
+            min-height: 42px;
+            padding: 0 22px;
+            border: 0;
+            border-radius: 4px;
+            background: #4a86e8;
+            color: #fff;
+            font: inherit;
+            cursor: pointer;
+        }
+
         @keyframes in {
             from {
                 opacity: 0;
@@ -287,6 +323,11 @@
         </div>
     </main>
     <p id="auth-status" role="status" aria-live="polite"></p>
+    <dialog id="auth-success" aria-labelledby="auth-success-title">
+        <h2 id="auth-success-title">ลงทะเบียน/เข้าสู่ระบบสำเร็จแล้ว</h2>
+        <p>FlowCurve กำลังเปิดใช้งานใน After Effects คุณสามารถกลับไปที่ After Effects ได้เลย</p>
+        <button id="auth-success-close" type="button">ตกลง</button>
+    </dialog>
     <script>
         document.addEventListener('contextmenu', function (event) { event.preventDefault(); });
         document.addEventListener('dragstart', function (event) { event.preventDefault(); });
@@ -296,6 +337,9 @@
         var sessionId = new URLSearchParams(window.location.search).get('session');
         var startButton = document.getElementById('start');
         var statusElement = document.getElementById('auth-status');
+        var successDialog = document.getElementById('auth-success');
+        var successCloseButton = document.getElementById('auth-success-close');
+        var isSuccessReturn = new URLSearchParams(window.location.search).get('auth') === 'success';
         var clerkReady;
         var isOpeningSignIn = false;
         var isCompletingPairing = false;
@@ -335,7 +379,9 @@
                     return submitToken();
                 })
                 .then(function () {
-                    setStatus('Signed in. Return to After Effects; FlowCurve is unlocking.');
+                    var returnUrl = new URL(window.location.href);
+                    returnUrl.searchParams.set('auth', 'success');
+                    window.location.replace(returnUrl.toString());
                 })
                 .catch(function (error) {
                     isCompletingPairing = false;
@@ -364,13 +410,21 @@
             });
 
             clerkReady = clerkReady.then(function () {
-                window.Clerk.addListener(function (state) {
-                    if (state.user) completePairing();
-                });
-                if (window.Clerk.user) completePairing();
+                if (!isSuccessReturn) {
+                    window.Clerk.addListener(function (state) {
+                        if (state.user) completePairing();
+                    });
+                    if (window.Clerk.user) completePairing();
+                }
             });
             return clerkReady;
         }
+
+        successCloseButton.addEventListener('click', function () {
+            successDialog.close();
+        });
+
+        if (isSuccessReturn) successDialog.showModal();
 
         startButton.addEventListener('click', function (event) {
             event.preventDefault();
