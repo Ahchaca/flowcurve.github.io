@@ -5,6 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>FlowCurve BETA</title>
+    <script defer crossorigin="anonymous" src="https://renewed-moray-9097.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js" type="text/javascript"></script>
+    <script defer crossorigin="anonymous" data-clerk-publishable-key="pk_test_cmVuZXdlZC1tb3JheS05MDk3LmNsZXJrLmFjY291bnRzLmRldiQ" src="https://renewed-moray-9097.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js" type="text/javascript"></script>
     <style>
         :root {
             --u: min(calc(100vw/2216), calc(100vh/1652));
@@ -272,7 +274,50 @@
                 style="left:calc(var(--u)*1160.0);top:calc(var(--u)*1175.0);width:calc(var(--u)*915.0)">
         </div>
     </main>
-    <script>document.addEventListener('contextmenu', e => e.preventDefault()); document.addEventListener('dragstart', e => e.preventDefault()); document.querySelectorAll('img').forEach(i => i.draggable = false); document.getElementById('start').addEventListener('click', e => { e.preventDefault(); document.querySelector('.tools').scrollIntoView({ behavior: 'smooth', block: 'center' }) })</script>
+    <script>
+        document.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+        document.addEventListener('dragstart', function (event) { event.preventDefault(); });
+        document.querySelectorAll('img').forEach(function (image) { image.draggable = false; });
+
+        var startButton = document.getElementById('start');
+        var clerkReady;
+        var isOpeningSignIn = false;
+
+        function loadClerk() {
+            return new Promise(function (resolve, reject) {
+                var deadline = Date.now() + 10000;
+
+                function waitForClerk() {
+                    if (window.Clerk && window.__internal_ClerkUICtor) {
+                        window.Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor } })
+                            .then(resolve, reject);
+                    } else if (Date.now() >= deadline) {
+                        reject(new Error('Clerk did not load'));
+                    } else {
+                        window.setTimeout(waitForClerk, 100);
+                    }
+                }
+
+                waitForClerk();
+            });
+        }
+
+        startButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            if (isOpeningSignIn) return;
+
+            isOpeningSignIn = true;
+            clerkReady = clerkReady || loadClerk();
+            clerkReady.then(function () {
+                isOpeningSignIn = false;
+                window.Clerk.openSignIn({});
+            }).catch(function () {
+                isOpeningSignIn = false;
+                clerkReady = null;
+                startButton.textContent = 'Try Again';
+            });
+        });
+    </script>
 </body>
 
 </html>
