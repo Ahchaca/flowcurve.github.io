@@ -151,6 +151,18 @@
             animation: in 1s cubic-bezier(.2, .7, .2, 1) both
         }
 
+        #auth-status {
+            position: fixed;
+            z-index: 10;
+            right: 16px;
+            bottom: max(16px, env(safe-area-inset-bottom));
+            left: 16px;
+            color: #fff;
+            font-size: 15px;
+            text-align: center;
+            text-shadow: 0 1px 4px #000;
+        }
+
         @keyframes in {
             from {
                 opacity: 0;
@@ -274,17 +286,56 @@
                 style="left:calc(var(--u)*1160.0);top:calc(var(--u)*1175.0);width:calc(var(--u)*915.0)">
         </div>
     </main>
+    <p id="auth-status" role="status" aria-live="polite"></p>
     <script>
         document.addEventListener('contextmenu', function (event) { event.preventDefault(); });
         document.addEventListener('dragstart', function (event) { event.preventDefault(); });
         document.querySelectorAll('img').forEach(function (image) { image.draggable = false; });
 
+        var API_BASE = 'https://flow-curve.onrender.com';
+        var sessionId = new URLSearchParams(window.location.search).get('session');
         var startButton = document.getElementById('start');
+        var statusElement = document.getElementById('auth-status');
         var clerkReady;
         var isOpeningSignIn = false;
+        var isCompletingPairing = false;
+
+        function setStatus(message) {
+            statusElement.textContent = message || '';
+        }
+
+        function completePairing() {
+            if (!sessionId || isCompletingPairing || !window.Clerk.session) return;
+            isCompletingPairing = true;
+            setStatus('Signed in. Unlocking FlowCurve in After Effects...');
+
+            window.Clerk.session.getToken()
+                .then(function (clerkToken) {
+                    return fetch(API_BASE + '/pair/complete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionId: sessionId, clerkToken: clerkToken })
+                    });
+                })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.error || 'server responded ' + response.status);
+                        return data;
+                    });
+                })
+                .then(function () {
+                    setStatus('Signed in. Return to After Effects; FlowCurve is unlocking.');
+                })
+                .catch(function (error) {
+                    isCompletingPairing = false;
+                    setStatus('Sign-in could not unlock FlowCurve: ' + error.message);
+                });
+        }
 
         function loadClerk() {
-            return new Promise(function (resolve, reject) {
+            if (clerkReady) return clerkReady;
+
+            clerkReady = new Promise(function (resolve, reject) {
                 var deadline = Date.now() + 10000;
 
                 function waitForClerk() {
@@ -300,6 +351,14 @@
 
                 waitForClerk();
             });
+
+            clerkReady = clerkReady.then(function () {
+                window.Clerk.addListener(function (state) {
+                    if (state.user) completePairing();
+                });
+                if (window.Clerk.user) completePairing();
+            });
+            return clerkReady;
         }
 
         startButton.addEventListener('click', function (event) {
@@ -307,14 +366,17 @@
             if (isOpeningSignIn) return;
 
             isOpeningSignIn = true;
-            clerkReady = clerkReady || loadClerk();
-            clerkReady.then(function () {
+            loadClerk().then(function () {
                 isOpeningSignIn = false;
-                window.Clerk.openSignIn({});
+                if (!sessionId) {
+                    setStatus('Open this page from the FlowCurve panel in After Effects to unlock it.');
+                    return;
+                }
+                if (!window.Clerk.user) window.Clerk.openSignIn({});
             }).catch(function () {
                 isOpeningSignIn = false;
                 clerkReady = null;
-                startButton.textContent = 'Try Again';
+                setStatus('Clerk could not load. Check your connection and try again.');
             });
         });
     </script>
